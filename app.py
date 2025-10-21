@@ -187,15 +187,29 @@ conversion_from_m = dim_from_meters[dimension_units]
 # Set appropriate ranges based on units
 if dimension_units == "Meters (m)":
     depth_min, depth_max, depth_default, depth_step = 2.0, 6.0, 3.5, 0.1
+    length_min, length_max, length_default, length_step = 10.0, 100.0, 40.0, 1.0
+    width_min, width_max, width_default, width_step = 5.0, 50.0, 12.0, 0.5
     unit_label = "m"
 elif dimension_units == "Feet (ft)":
     depth_min, depth_max, depth_default, depth_step = 6.0, 20.0, 11.5, 0.5
+    length_min, length_max, length_default, length_step = 30.0, 330.0, 130.0, 5.0
+    width_min, width_max, width_default, width_step = 15.0, 165.0, 40.0, 1.0
     unit_label = "ft"
 else:  # Inches
     depth_min, depth_max, depth_default, depth_step = 80.0, 240.0, 138.0, 1.0
+    length_min, length_max, length_default, length_step = 400.0, 4000.0, 1600.0, 50.0
+    width_min, width_max, width_default, width_step = 200.0, 2000.0, 500.0, 10.0
     unit_label = "in"
 
-# Typical depth range
+# Design mode selector
+design_mode = st.sidebar.radio(
+    "Dimension Input Mode",
+    ["Auto-Calculate (Ratio-Based)", "Manual Entry"],
+    index=0,
+    help="Auto: Use L:W ratio to calculate dimensions | Manual: Enter length and width directly"
+)
+
+# Depth (always user-controlled)
 depth_display = st.sidebar.slider(
     f"Basin Depth ({unit_label})",
     min_value=depth_min,
@@ -214,26 +228,137 @@ surface_area_for_volume = volume_required / depth
 # Use the larger of the two area requirements
 surface_area_actual = max(surface_area_required, surface_area_for_volume)
 
-# Length to width ratio
-l_w_ratio = st.sidebar.slider(
-    "Length:Width Ratio",
-    min_value=2.0,
-    max_value=6.0,
-    value=4.0,
-    step=0.5,
-    help="Typical range: 3:1 to 5:1"
-)
+if design_mode == "Auto-Calculate (Ratio-Based)":
+    # Length to width ratio
+    l_w_ratio = st.sidebar.slider(
+        "Length:Width Ratio",
+        min_value=2.0,
+        max_value=6.0,
+        value=4.0,
+        step=0.5,
+        help="Typical range: 3:1 to 5:1"
+    )
+    
+    # Calculate length and width
+    width = np.sqrt(surface_area_actual / l_w_ratio)
+    length = width * l_w_ratio
+    
+    # Convert dimensions to display units
+    length_display = length * conversion_from_m
+    width_display = width * conversion_from_m
+    
+    st.sidebar.caption(f"📐 Calculated: L={length_display:.1f} {unit_label}, W={width_display:.1f} {unit_label}")
+    
+else:  # Manual Entry
+    st.sidebar.markdown("**Enter dimensions manually:**")
+    
+    # Show targets first to guide students
+    with st.sidebar.expander("📊 Target Values (for reference)", expanded=False):
+        target_area = surface_area_required
+        target_volume = volume_required
+        # Calculate ideal dimensions for L:W = 4:1
+        ideal_width = np.sqrt(target_area / 4.0)
+        ideal_length = ideal_width * 4.0
+        ideal_depth = target_volume / target_area
+        
+        st.markdown(f"""
+        **For {overflow_rate:.0f} m/d overflow rate:**
+        - Target Area: {target_area:.1f} m²
+        
+        **For {detention_time:.2f} hr detention:**
+        - Target Volume: {target_volume:.1f} m³
+        
+        **Example dimensions (L:W = 4:1):**
+        - Length: {ideal_length * conversion_from_m:.1f} {unit_label}
+        - Width: {ideal_width * conversion_from_m:.1f} {unit_label}
+        - Depth: {ideal_depth * conversion_from_m:.1f} {unit_label}
+        """)
+    
+    length_display = st.sidebar.number_input(
+        f"Length ({unit_label})",
+        min_value=length_min,
+        max_value=length_max,
+        value=length_default,
+        step=length_step
+    )
+    
+    width_display = st.sidebar.number_input(
+        f"Width ({unit_label})",
+        min_value=width_min,
+        max_value=width_max,
+        value=width_default,
+        step=width_step
+    )
+    
+    # Convert to meters
+    length = length_display * conversion_to_m
+    width = width_display * conversion_to_m
+    
+    # Calculate actual ratio
+    l_w_ratio = length / width
+    
+    # Calculate actual area
+    surface_area_actual = length * width
+    
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("**📈 Real-time Checks:**")
+    
+    # Show ratio feedback
+    if 3.0 <= l_w_ratio <= 5.0:
+        ratio_status = "🟢"
+        ratio_msg = "Good ratio"
+    elif 2.5 <= l_w_ratio < 3.0 or 5.0 < l_w_ratio <= 6.0:
+        ratio_status = "🟡"
+        ratio_msg = "Acceptable"
+    else:
+        ratio_status = "🔴"
+        ratio_msg = "Outside typical range"
+    
+    st.sidebar.markdown(f"{ratio_status} **L:W Ratio: {l_w_ratio:.2f}:1** - {ratio_msg}")
+    
+    # Check area requirement
+    area_deficit = surface_area_required - surface_area_actual
+    if abs(area_deficit) / surface_area_required < 0.05:  # Within 5%
+        area_status = "🟢"
+        area_msg = "Meets area requirement"
+    elif area_deficit > 0:  # Too small
+        area_status = "🔴"
+        area_msg = f"Need {abs(area_deficit):.1f} m² more area"
+    else:  # Too large (okay but wasteful)
+        area_status = "🟡"
+        area_msg = "Larger than needed (conservative)"
+    
+    st.sidebar.markdown(f"{area_status} **Area: {surface_area_actual:.1f} m²** - {area_msg}")
+    st.sidebar.caption(f"Target: {surface_area_required:.1f} m² (for overflow rate)")
+    
+    # Check volume requirement  
+    volume_actual = surface_area_actual * depth
+    volume_deficit = volume_required - volume_actual
+    if abs(volume_deficit) / volume_required < 0.05:  # Within 5%
+        vol_status = "🟢"
+        vol_msg = "Meets volume requirement"
+    elif volume_deficit > 0:  # Too small
+        vol_status = "🔴"
+        vol_msg = f"Need {abs(volume_deficit):.1f} m³ more volume"
+    else:  # Too large (okay)
+        vol_status = "🟡"
+        vol_msg = "Larger than needed (conservative)"
+    
+    st.sidebar.markdown(f"{vol_status} **Volume: {volume_actual:.1f} m³** - {vol_msg}")
+    st.sidebar.caption(f"Target: {volume_required:.1f} m³ (for detention time)")
+    
+    # Suggestions
+    if area_status == "🔴" or vol_status == "🔴":
+        st.sidebar.warning("**💡 Suggestions:**")
+        if area_deficit > 0:
+            st.sidebar.markdown(f"• Increase length or width by ~{np.sqrt((surface_area_actual + area_deficit)/surface_area_actual)-1:.1%}")
+        if volume_deficit > 0:
+            suggested_depth = volume_required / surface_area_actual * conversion_from_m
+            st.sidebar.markdown(f"• Increase depth to ≥{suggested_depth:.1f} {unit_label}")
 
-# Calculate length and width
-width = np.sqrt(surface_area_actual / l_w_ratio)
-length = width * l_w_ratio
-
-# Convert dimensions to display units
-length_display = length * conversion_from_m
-width_display = width * conversion_from_m
 depth_display_actual = depth * conversion_from_m
 
-# Actual volume
+# Actual volume (recalculate after dimensions are set)
 volume_actual = surface_area_actual * depth
 
 # Actual detention time
@@ -245,6 +370,14 @@ overflow_rate_actual = flow_per_basin / surface_area_actual  # m/d
 # ==================== DESIGN CHECKS ====================
 
 st.header("Design Summary")
+
+if design_mode == "Manual Entry":
+    st.info("""
+    🔧 **Manual Entry Mode Active** - You're entering dimensions directly. Check the sidebar for:
+    - 🟢 Green indicators = meets requirements
+    - 🟡 Yellow indicators = acceptable but not optimal  
+    - 🔴 Red indicators = needs adjustment
+    """)
 
 col1, col2, col3 = st.columns(3)
 
