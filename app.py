@@ -26,6 +26,9 @@ with st.expander("📚 How to Use This Tool", expanded=False):
     - **Overflow Rate** (m/d) - from the "Overflow Rate vs. Removal" plot
     - Select values that give you your desired removal percentage
     
+    **Important Note:** The detention time and overflow rate are calculated using your **settling column depth** 
+    (e.g., 85 inches). You don't need to enter that depth here - it's already included in those parameters!
+    
     ### Step 2: Enter Flow Rate
     - Determine the flow rate your treatment plant needs to handle
     - This could be based on population, industrial needs, or design requirements
@@ -34,18 +37,41 @@ with st.expander("📚 How to Use This Tool", expanded=False):
     - Decide if you want one large basin or multiple smaller ones
     - Multiple basins provide redundancy and flexibility
     
-    ### Step 4: Adjust Dimensions
-    - The tool will calculate initial dimensions
-    - Adjust length, width, and depth to meet practical constraints
+    ### Step 4: Design Basin Dimensions
+    - Now you design the **actual treatment basin depth** (not your settling column depth!)
+    - Your settling column might be 85 inches, but your basin could be 120 inches (10 feet) or different
+    - Typical treatment basins are 3-5 meters (10-16 feet) deep
+    - Adjust length, width, and depth to meet practical and economic constraints
     - Check that all design criteria are satisfied
     
     ### Step 5: Review Design
     - Verify all design checks pass (green checkmarks)
     - Review the 3D visualization
     - Export results for your design report
+    
+    ---
+    
+    ### Understanding the Two Different Depths
+    
+    **Settling Column Depth (Lab):**
+    - This is your physical column height (e.g., 85 inches)
+    - Used to generate detention time and overflow rate
+    - Already accounted for - don't enter it again!
+    
+    **Design Basin Depth (Treatment Plant):**
+    - This is what you're designing for the actual facility
+    - Can be different from your settling column!
+    - Adjust to meet volume requirements and construction constraints
+    - Typically 3-5 meters (10-16 feet) for rectangular basins
     """)
 
 st.markdown("---")
+
+st.info("""
+💡 **Quick Tip:** Your settling column depth is already built into the detention time and overflow rate values. 
+The depth you choose here is for designing the actual treatment basin, which can be sized independently 
+to meet your flow and volume requirements!
+""")
 
 # ==================== SIDEBAR INPUTS ====================
 st.sidebar.header("Design Parameters")
@@ -134,15 +160,53 @@ st.sidebar.subheader("4. Basin Dimensions")
 
 st.sidebar.caption("Adjust dimensions to meet practical constraints")
 
-# Typical depth range
-depth = st.sidebar.slider(
-    "Depth (m)",
-    min_value=2.0,
-    max_value=6.0,
-    value=3.5,
-    step=0.1,
-    help="Typical range: 3-5 meters"
+# Unit selector for basin dimensions
+dimension_units = st.sidebar.selectbox(
+    "Dimension Units",
+    ["Meters (m)", "Feet (ft)", "Inches (in)"],
+    index=0,
+    help="Choose units for basin dimensions"
 )
+
+# Conversion factors to meters
+dim_to_meters = {
+    "Meters (m)": 1.0,
+    "Feet (ft)": 0.3048,
+    "Inches (in)": 0.0254
+}
+
+dim_from_meters = {
+    "Meters (m)": 1.0,
+    "Feet (ft)": 3.28084,
+    "Inches (in)": 39.3701
+}
+
+conversion_to_m = dim_to_meters[dimension_units]
+conversion_from_m = dim_from_meters[dimension_units]
+
+# Set appropriate ranges based on units
+if dimension_units == "Meters (m)":
+    depth_min, depth_max, depth_default, depth_step = 2.0, 6.0, 3.5, 0.1
+    unit_label = "m"
+elif dimension_units == "Feet (ft)":
+    depth_min, depth_max, depth_default, depth_step = 6.0, 20.0, 11.5, 0.5
+    unit_label = "ft"
+else:  # Inches
+    depth_min, depth_max, depth_default, depth_step = 80.0, 240.0, 138.0, 1.0
+    unit_label = "in"
+
+# Typical depth range
+depth_display = st.sidebar.slider(
+    f"Basin Depth ({unit_label})",
+    min_value=depth_min,
+    max_value=depth_max,
+    value=depth_default,
+    step=depth_step,
+    help=f"Typical range for treatment basins"
+)
+
+# Convert to meters for calculations
+depth = depth_display * conversion_to_m
 
 # Calculate required surface area for this depth
 surface_area_for_volume = volume_required / depth
@@ -163,6 +227,11 @@ l_w_ratio = st.sidebar.slider(
 # Calculate length and width
 width = np.sqrt(surface_area_actual / l_w_ratio)
 length = width * l_w_ratio
+
+# Convert dimensions to display units
+length_display = length * conversion_from_m
+width_display = width * conversion_from_m
+depth_display_actual = depth * conversion_from_m
 
 # Actual volume
 volume_actual = surface_area_actual * depth
@@ -190,9 +259,9 @@ with col2:
     st.metric("Detention Time", f"{detention_time_actual:.2f} hours")
 
 with col3:
-    st.metric("Length", f"{length:.2f} m")
-    st.metric("Width", f"{width:.2f} m")
-    st.metric("Depth", f"{depth:.2f} m")
+    st.metric("Length", f"{length_display:.2f} {unit_label}")
+    st.metric("Width", f"{width_display:.2f} {unit_label}")
+    st.metric("Depth", f"{depth_display_actual:.2f} {unit_label}")
 
 st.markdown("---")
 
@@ -255,76 +324,163 @@ st.markdown("---")
 
 st.header("Design Criteria Check")
 
+with st.expander("💡 How to Adjust Your Design", expanded=False):
+    st.markdown("""
+    ### Understanding the Controls
+    
+    **Depth Slider:**
+    - ⬆️ Increase depth → Increases volume → Increases detention time
+    - ⬇️ Decrease depth → Decreases volume → Decreases detention time
+    - Does NOT affect overflow rate (which depends on surface area only)
+    
+    **Length:Width Ratio:**
+    - ⬆️ Increase ratio (longer/narrower basin) → Increases surface area → Decreases overflow rate
+    - ⬇️ Decrease ratio (shorter/wider basin) → Decreases surface area → Increases overflow rate
+    - Also affects horizontal velocity and weir loading
+    
+    **Number of Basins:**
+    - ⬆️ More basins → Less flow per basin → Smaller individual basins
+    - Provides redundancy for maintenance
+    
+    ---
+    
+    ### Quick Adjustment Guide
+    
+    | If you need to... | Adjust... | Direction |
+    |-------------------|-----------|-----------|
+    | Increase detention time | Depth | ⬆️ Increase |
+    | Decrease detention time | Depth | ⬇️ Decrease |
+    | Decrease overflow rate | L:W Ratio | ⬆️ Increase |
+    | Increase overflow rate | L:W Ratio | ⬇️ Decrease |
+    | Slow horizontal velocity | Width or Depth | ⬆️ Increase |
+    | Speed up velocity | Width or Depth | ⬇️ Decrease |
+    | Reduce weir loading | Width (adds weir length) | ⬆️ Increase |
+    
+    ---
+    
+    ### Design Strategy
+    
+    1. **Start with depth**: Choose a reasonable depth (10-14 ft typical)
+    2. **Adjust L:W ratio**: Get overflow rate close to target
+    3. **Fine-tune depth**: Match detention time
+    4. **Check all criteria**: Use the table below
+    5. **Iterate**: Make small adjustments until all checks pass
+    """)
+
 checks = []
 
 # Check 1: Detention time
 dt_check = abs(detention_time_actual - detention_time) / detention_time < 0.1
+dt_advice = "✓ Meets target" if dt_check else (
+    "→ Increase depth to increase volume" if detention_time_actual < detention_time 
+    else "→ Decrease depth to reduce volume"
+)
 checks.append({
     "Criterion": "Detention Time Match",
     "Target": f"{detention_time:.2f} hours",
     "Actual": f"{detention_time_actual:.2f} hours",
     "Status": "✅ Pass" if dt_check else "⚠️ Review",
-    "Notes": "Within 10% of target" if dt_check else "Adjust depth or L:W ratio"
+    "How to Fix": dt_advice
 })
 
 # Check 2: Overflow rate
 or_check = abs(overflow_rate_actual - overflow_rate) / overflow_rate < 0.1
+or_advice = "✓ Meets target" if or_check else (
+    "→ Increase L:W ratio to increase surface area" if overflow_rate_actual > overflow_rate
+    else "→ Decrease L:W ratio to decrease surface area"
+)
 checks.append({
     "Criterion": "Overflow Rate Match",
     "Target": f"{overflow_rate:.1f} m/d",
     "Actual": f"{overflow_rate_actual:.1f} m/d",
     "Status": "✅ Pass" if or_check else "⚠️ Review",
-    "Notes": "Within 10% of target" if or_check else "Adjust depth or L:W ratio"
+    "How to Fix": or_advice
 })
 
 # Check 3: Horizontal velocity
 hv_check = 0.0015 <= horizontal_velocity <= 0.0045  # 0.15 to 0.45 cm/s in m/s
+if horizontal_velocity > 0.0045:
+    hv_advice = "→ Increase width OR increase depth to slow flow"
+elif horizontal_velocity < 0.0015:
+    hv_advice = "→ Decrease width OR decrease depth to speed up flow"
+else:
+    hv_advice = "✓ Good settling velocity"
 checks.append({
     "Criterion": "Horizontal Velocity",
     "Target": "0.15-0.45 cm/s",
     "Actual": f"{horizontal_velocity*100:.2f} cm/s",
     "Status": "✅ Pass" if hv_check else "⚠️ Review",
-    "Notes": "Good for settling" if hv_check else "May cause scour or short-circuiting"
+    "How to Fix": hv_advice
 })
 
 # Check 4: Length to width ratio
 lw_check = 3.0 <= l_w_ratio <= 5.0
+lw_advice = "✓ Good plug flow" if lw_check else (
+    "→ Increase L:W ratio (make basin longer/narrower)" if l_w_ratio < 3.0
+    else "→ Decrease L:W ratio (make basin shorter/wider)"
+)
 checks.append({
     "Criterion": "Length:Width Ratio",
     "Target": "3:1 to 5:1",
     "Actual": f"{l_w_ratio:.1f}:1",
     "Status": "✅ Pass" if lw_check else "⚠️ Review",
-    "Notes": "Good plug flow" if lw_check else "Adjust for better hydraulics"
+    "How to Fix": lw_advice
 })
 
 # Check 5: Depth
-depth_check = 3.0 <= depth <= 5.0
+if dimension_units == "Meters (m)":
+    depth_check = 3.0 <= depth <= 5.0
+    depth_range_text = "3-5 m"
+    depth_advice = "✓ Typical range" if depth_check else (
+        "→ Increase depth (or reduce flow per basin)" if depth < 3.0
+        else "→ Decrease depth (consider structural limits)"
+    )
+elif dimension_units == "Feet (ft)":
+    depth_check = 10.0 <= depth_display_actual <= 16.0
+    depth_range_text = "10-16 ft"
+    depth_advice = "✓ Typical range" if depth_check else (
+        "→ Increase depth (or reduce flow per basin)" if depth_display_actual < 10.0
+        else "→ Decrease depth (consider structural limits)"
+    )
+else:  # Inches
+    depth_check = 120.0 <= depth_display_actual <= 200.0
+    depth_range_text = "120-200 in"
+    depth_advice = "✓ Typical range" if depth_check else (
+        "→ Increase depth (or reduce flow per basin)" if depth_display_actual < 120.0
+        else "→ Decrease depth (consider structural limits)"
+    )
+
 checks.append({
     "Criterion": "Basin Depth",
-    "Target": "3-5 m",
-    "Actual": f"{depth:.1f} m",
+    "Target": depth_range_text,
+    "Actual": f"{depth_display_actual:.1f} {unit_label}",
     "Status": "✅ Pass" if depth_check else "⚠️ Review",
-    "Notes": "Typical range" if depth_check else "Consider structural implications"
+    "How to Fix": depth_advice
 })
 
 # Check 6: Weir loading
 weir_check = 125 <= weir_loading_m3_d_m <= 500
+weir_advice = "✓ Won't disturb floc" if weir_check else (
+    "→ Increase width (increases weir length)" if weir_loading_m3_d_m > 500
+    else "→ Decrease width OR add more weirs"
+)
 checks.append({
     "Criterion": "Weir Loading",
     "Target": "125-500 m³/d/m",
     "Actual": f"{weir_loading_m3_d_m:.1f} m³/d/m",
     "Status": "✅ Pass" if weir_check else "⚠️ Review",
-    "Notes": "Won't disturb floc" if weir_check else "Consider increasing weir length"
+    "How to Fix": weir_advice
 })
 
 # Check 7: Reynolds number
 re_check = reynolds_number < 2000
+re_advice = "✓ Laminar flow" if re_check else "→ Increase depth OR increase width to reduce velocity"
 checks.append({
     "Criterion": "Flow Regime",
     "Target": "Re < 2000 (Laminar)",
     "Actual": f"Re = {reynolds_number:,.0f}",
     "Status": "✅ Pass" if re_check else "⚠️ Review",
-    "Notes": "Laminar flow" if re_check else "Turbulent - may affect settling"
+    "How to Fix": re_advice
 })
 
 checks_df = pd.DataFrame(checks)
@@ -389,7 +545,7 @@ with tab1:
         y=[-width*0.2],
         z=[0],
         mode='text',
-        text=[f'L = {length:.1f} m'],
+        text=[f'L = {length_display:.1f} {unit_label}'],
         textfont=dict(size=14, color='red'),
         showlegend=False
     ))
@@ -399,7 +555,7 @@ with tab1:
         y=[width/2],
         z=[0],
         mode='text',
-        text=[f'W = {width:.1f} m'],
+        text=[f'W = {width_display:.1f} {unit_label}'],
         textfont=dict(size=14, color='red'),
         showlegend=False
     ))
@@ -409,16 +565,16 @@ with tab1:
         y=[0],
         z=[depth/2],
         mode='text',
-        text=[f'D = {depth:.1f} m'],
+        text=[f'D = {depth_display_actual:.1f} {unit_label}'],
         textfont=dict(size=14, color='red'),
         showlegend=False
     ))
     
     fig.update_layout(
         scene=dict(
-            xaxis_title='Length (m)',
-            yaxis_title='Width (m)',
-            zaxis_title='Depth (m)',
+            xaxis_title=f'Length ({unit_label})',
+            yaxis_title=f'Width ({unit_label})',
+            zaxis_title=f'Depth ({unit_label})',
             aspectmode='data'
         ),
         height=600,
@@ -470,13 +626,13 @@ with tab2:
     ax.plot([0, length], [-width*0.1, -width*0.1], 'k-', linewidth=2)
     ax.plot([0, 0], [-width*0.15, -width*0.05], 'k-', linewidth=2)
     ax.plot([length, length], [-width*0.15, -width*0.05], 'k-', linewidth=2)
-    ax.text(length/2, -width*0.2, f'Length = {length:.1f} m',
+    ax.text(length/2, -width*0.2, f'Length = {length_display:.1f} {unit_label}',
            ha='center', fontsize=12, weight='bold')
     
     ax.plot([-length*0.1, -length*0.1], [0, width], 'k-', linewidth=2)
     ax.plot([-length*0.15, -length*0.05], [0, 0], 'k-', linewidth=2)
     ax.plot([-length*0.15, -length*0.05], [width, width], 'k-', linewidth=2)
-    ax.text(-length*0.2, width/2, f'Width = {width:.1f} m',
+    ax.text(-length*0.2, width/2, f'Width = {width_display:.1f} {unit_label}',
            ha='center', va='center', rotation=90, fontsize=12, weight='bold')
     
     ax.set_xlim(-length*0.3, length*1.1)
@@ -537,13 +693,13 @@ with tab3:
     ax.plot([0, length], [-depth*0.15, -depth*0.15], 'k-', linewidth=2)
     ax.plot([0, 0], [-depth*0.2, -depth*0.1], 'k-', linewidth=2)
     ax.plot([length, length], [-depth*0.2, -depth*0.1], 'k-', linewidth=2)
-    ax.text(length/2, -depth*0.25, f'Length = {length:.1f} m',
+    ax.text(length/2, -depth*0.25, f'Length = {length_display:.1f} {unit_label}',
            ha='center', fontsize=12, weight='bold')
     
     ax.plot([length*1.05, length*1.05], [0, depth], 'k-', linewidth=2)
     ax.plot([length*1.02, length*1.08], [0, 0], 'k-', linewidth=2)
     ax.plot([length*1.02, length*1.08], [depth, depth], 'k-', linewidth=2)
-    ax.text(length*1.15, depth/2, f'Depth = {depth:.1f} m',
+    ax.text(length*1.15, depth/2, f'Depth = {depth_display_actual:.1f} {unit_label}',
            ha='center', va='center', rotation=90, fontsize=12, weight='bold')
     
     ax.set_xlim(-length*0.1, length*1.25)
@@ -633,9 +789,9 @@ summary_data = {
         f"{detention_time_actual:.2f} hours",
         f"{overflow_rate:.1f} m/d",
         f"{overflow_rate_actual:.1f} m/d",
-        f"{length:.2f} m",
-        f"{width:.2f} m",
-        f"{depth:.2f} m",
+        f"{length_display:.2f} {unit_label}",
+        f"{width_display:.2f} {unit_label}",
+        f"{depth_display_actual:.2f} {unit_label}",
         f"{volume_actual:,.1f} m³",
         f"{surface_area_actual:,.1f} m²",
         f"{l_w_ratio:.1f}:1",
