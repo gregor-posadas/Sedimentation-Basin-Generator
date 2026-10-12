@@ -112,7 +112,7 @@ def particle_figure(d, u, k, vs_list, fb_m):
         label = (f"{vs:g} m/d from {'the surface' if start >= 0.999 else f'{start * 100:.0f} % of the depth'}: "
                  + ("caught" if caught else "escapes"))
         fig.add_trace(go.Scatter(
-            x=[0, x_end], y=[z0, z_end], mode="lines+markers", name=label,
+            x=[0, x_end], y=[z0, z_end], mode="lines+markers", name=label, cliponaxis=False,
             line=dict(color=col, width=3, dash=dash),
             marker=dict(symbol=["circle", "circle" if caught else "x"], size=[10, 14], color=col,
                         line=dict(color="#ffffff", width=1)),
@@ -120,7 +120,7 @@ def particle_figure(d, u, k, vs_list, fb_m):
                            + ("Reaches the floor " + f"{x_end / L * 100:.0f} % of the way along" if caught
                               else "Still in suspension at the outlet") + "<extra></extra>")))
     ui.base_layout(fig, height=330, legend_title="Particle paths", n_items=len(vs_list), per_row=1, top=56)
-    fig.update_xaxes(**ui.style_axes(fig, automargin=False, title_standoff=12, title_text=f"Distance along the basin ({u})",
+    fig.update_xaxes(**ui.style_axes(fig, automargin=False, title_standoff=14, title_text=f"Distance along the basin ({u})",
                                      range=[-0.01 * L, L * 1.01]))
     fig.update_yaxes(**ui.style_axes(fig, title_text=f"Height above the floor ({u})", range=[0, (H + fb) * 1.04],
                                      showgrid=False))
@@ -152,11 +152,11 @@ def plan_figure(d, u, k, runs):
                              line=dict(color=ui.ORANGE, width=5)))
     fig.add_trace(go.Scatter(x=[None], y=[None], mode="markers", name="Inlet zone",
                              marker=dict(symbol="square", size=14, color="rgba(56,95,150,0.4)", line=dict(color=ui.BLUE, width=1))))
-    ui.base_layout(fig, height=300, legend_title=None, n_items=2, per_row=2)
-    fig.update_xaxes(**ui.style_axes(fig, automargin=False, title_standoff=12, title_text=f"Length, L = {L:.1f} {u}",
+    ui.base_layout(fig, height=int(np.clip(680 * W / L, 140, 340)), legend_title=None, n_items=2, per_row=2)
+    fig.update_xaxes(**ui.style_axes(fig, automargin=False, title_standoff=14, title_text=f"Length, L = {L:.1f} {u}",
                                      range=[-0.01 * L, 1.01 * L]))
-    fig.update_yaxes(**ui.style_axes(fig, title_text=f"Width, W = {W:.1f} {u}", range=[-0.02 * W, 1.02 * W],
-                                     scaleanchor="x", scaleratio=1, showgrid=False))
+    fig.update_yaxes(**ui.style_axes(fig, title_text=f"W = {W:.1f} {u}", range=[-0.02 * W, 1.02 * W],
+                                     scaleanchor="x", scaleratio=1, constrain="domain", showgrid=False))
     fig.update_xaxes(showgrid=False)
     return fig
 
@@ -193,19 +193,18 @@ def _drawings_zip(d, u, k, fb_m, runs):
     L, W, H, fb = d["L"] * k, d["W"] * k, d["H"] * k, fb_m * k
     figs = []
     with plt.rc_context(rc):
-        fig, ax = plt.subplots(figsize=(6.5, 2.8))
-        ax.add_patch(Rectangle((0, 0), L, H, fc="#dbe6f3", ec="none"))
-        ax.add_patch(Rectangle((0, 0), L, 0.06 * H, fc="#8c6b5a", ec="none"))
+        fig, ax = plt.subplots(figsize=(6.5, 3.2), layout="constrained")
+        ax.add_patch(Rectangle((0, 0), L, H, fc="#dbe6f3", ec="none", label="Water"))
+        ax.add_patch(Rectangle((0, 0), L, 0.06 * H, fc="#8c6b5a", ec="none", label="Sludge zone"))
         ax.add_patch(Rectangle((0, 0), L, H + fb, fc="none", ec=ui.INK, lw=1.4))
-        ax.plot([0, L], [H, H], color=ui.BLUE, lw=1.2)
+        ax.plot([0, L], [H, H], color=ui.BLUE, lw=1.2, label=f"Water surface (depth {H:.1f} {u})")
         ax.plot([0, L], [H, 0.06 * H], color=ui.INK, lw=1.2, ls="--",
                 label=f"Particle settling at the overflow rate ({d['overflow']:.1f} m/d)")
-        ax.set_xlim(0, L); ax.set_ylim(0, (H + fb) * 1.05)
-        ax.set_xlabel(f"Distance along the basin ({u})"); ax.set_ylabel(f"Height ({u})")
-        ax.text(L * 0.5, 0.03 * H, "sludge", ha="center", va="center", color="white", fontsize=8)
-        leg = ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.32), frameon=True, edgecolor=ui.INK, fancybox=False)
-        fig.tight_layout(); figs.append(("basin_side_view", fig))
-        fig, ax = plt.subplots(figsize=(6.5, 2.8))
+        ax.set_xlim(-0.015 * L, 1.015 * L); ax.set_ylim(-0.04 * (H + fb), (H + fb) * 1.06)
+        ax.set_xlabel(f"Distance along the basin ({u})", labelpad=6); ax.set_ylabel(f"Height above the floor ({u})", labelpad=8)
+        fig.legend(loc="outside lower center", ncol=2, frameon=True, edgecolor=ui.INK, fancybox=False, fontsize=9)
+        figs.append(("basin_side_view", fig))
+        fig, ax = plt.subplots(figsize=(6.5, 2.9), layout="constrained")
         ax.add_patch(Rectangle((0, 0), L, W, fc="#dbe6f3", ec=ui.INK, lw=1.4))
         ax.add_patch(Rectangle((0, 0), 0.08 * L, W, fc="#b3c6e0", ec=ui.BLUE, lw=1, label="Inlet zone"))
         n_l = max(1, runs // 2) if runs > 1 else 0
@@ -213,10 +212,10 @@ def _drawings_zip(d, u, k, fb_m, runs):
             ax.plot([x, x], [0.04 * W, 0.96 * W], color=ui.ORANGE, lw=3, label=f"Outlet weirs ({runs} runs of W)" if i == 0 else None)
         if runs == 1 or runs % 2:
             ax.plot([L, L], [0, W], color=ui.ORANGE, lw=3, label=None if n_l else f"Outlet weir ({runs} run of W)")
-        ax.set_aspect("equal"); ax.set_xlim(-0.01 * L, 1.01 * L); ax.set_ylim(-0.02 * W, 1.02 * W)
-        ax.set_xlabel(f"Length, L = {L:.1f} {u}"); ax.set_ylabel(f"Width, W = {W:.1f} {u}")
-        ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.35), ncol=2, frameon=True, edgecolor=ui.INK, fancybox=False)
-        fig.tight_layout(); figs.append(("basin_plan_view", fig))
+        ax.set_aspect("equal"); ax.set_xlim(-0.015 * L, 1.015 * L); ax.set_ylim(-0.04 * W, 1.04 * W)
+        ax.set_xlabel(f"Length, L = {L:.1f} {u}", labelpad=6); ax.set_ylabel(f"Width, W = {W:.1f} {u}", labelpad=8)
+        fig.legend(loc="outside lower center", ncol=2, frameon=True, edgecolor=ui.INK, fancybox=False, fontsize=9)
+        figs.append(("basin_plan_view", fig))
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
         for name, f in figs:
