@@ -8,6 +8,7 @@ import streamlit as st
 
 import basin_calc as bc
 import ui_theme as ui
+from explainers import LINKS, PICS
 import basin_anim
 import streamlit.components.v1 as components
 from ui_theme import term, md
@@ -46,7 +47,7 @@ D = {
 
 
 def T(text, key):
-    return term(text, D[key])
+    return term(text, D[key], more=LINKS.get(key), pic=PICS.get(key))
 
 
 def _qp(name, default):
@@ -239,7 +240,7 @@ def tool_page():
     st.header("New here? The idea in three minutes", anchor="the-idea")
     with st.expander("Read this first if you haven't designed a basin before", expanded=True):
         md(f"""
-<p><b>What the basin does.</b> Water enters at one end, crosses slowly, and leaves over weirs at the other end. While
+<p><b>What the basin does.</b> Water enters at one end, crosses slowly, and leaves over {T('weirs', 'weir')} at the other end. While
 it crosses, particles sink. A particle is removed if it reaches the floor before the water carrying it reaches the
 outlet.</p>
 <p><b>The key result.</b> The water takes V ÷ Q to cross, and a particle starting at the surface must sink the full
@@ -301,7 +302,8 @@ checks each one and says what to change if it fails.</p>
     # ---------------- Step 3 ----------------
     ui.step_header(3, "Basin shape", "step-3")
     md(f"Choose the {T('side-water depth', 'swd')} and either a {T('length-to-width ratio', 'lw')} (the tool then "
-       f"finds the smallest basin that meets both column values) or your own length and width.")
+       f"finds the smallest basin that meets both column values) or your own length and width, plus the "
+       f"{T('freeboard', 'freeboard')} above the water.")
     a, b = st.columns(2, gap="large")
     unit_l = a.segmented_control("Show lengths in", ["m", "ft"], default="m",
                                  format_func=lambda x: "metres" if x == "m" else "feet") or "m"
@@ -393,7 +395,7 @@ checks each one and says what to change if it fails.</p>
            f"**{d['A_overflow']:,.1f} m²**\n"
            f"4. Area for the detention time: A = q × t ÷ H = {d['q_per_basin']:,.0f} × {d['t_design']:.3f} ÷ 24 ÷ "
            f"{H:.2f} = **{d['A_volume']:,.1f} m²**\n"
-           + (f"5. Larger of the two × safety factor: A = {d['A_required']:,.1f} × {sf:g} = **{d['A']:,.1f} m²**; "
+           + (f"5. Larger of the two × {T('safety factor', 'sf')}: A = {d['A_required']:,.1f} × {sf:g} = **{d['A']:,.1f} m²**; "
               f"W = √(A ÷ {lw:g}) = {d['W']:.2f} m, L = {lw:g} × W = {d['L']:.2f} m\n" if mode == "auto" else
               f"5. Your dimensions: A = {d['L']:.2f} × {d['W']:.2f} = **{d['A']:,.1f} m²**\n")
            + f"6. Volume: V = A × H = {d['A']:,.1f} × {H:.2f} = **{d['V']:,.0f} m³**\n"
