@@ -8,6 +8,8 @@ import streamlit as st
 
 import basin_calc as bc
 import ui_theme as ui
+import basin_anim
+import streamlit.components.v1 as components
 from ui_theme import term, md
 
 ISOREMOVAL_URL = "https://isoremoval.streamlit.app/"
@@ -178,6 +180,50 @@ def view_3d(d, u, k):
         legend=dict(x=0.01, y=0.99, bgcolor="#ffffff", bordercolor=ui.INK, borderwidth=1),
     )
     return fig
+
+
+def _drawings_zip(d, u, k, fb_m, runs):
+    import io, zipfile
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import Rectangle
+    rc = {"font.family": ["Open Sans", "DejaVu Sans"], "font.size": 10, "axes.edgecolor": "#857e6e",
+          "axes.spines.top": False, "axes.spines.right": False, "figure.facecolor": "white", "axes.facecolor": "white"}
+    L, W, H, fb = d["L"] * k, d["W"] * k, d["H"] * k, fb_m * k
+    figs = []
+    with plt.rc_context(rc):
+        fig, ax = plt.subplots(figsize=(6.5, 2.8))
+        ax.add_patch(Rectangle((0, 0), L, H, fc="#dbe6f3", ec="none"))
+        ax.add_patch(Rectangle((0, 0), L, 0.06 * H, fc="#8c6b5a", ec="none"))
+        ax.add_patch(Rectangle((0, 0), L, H + fb, fc="none", ec=ui.INK, lw=1.4))
+        ax.plot([0, L], [H, H], color=ui.BLUE, lw=1.2)
+        ax.plot([0, L], [H, 0.06 * H], color=ui.INK, lw=1.2, ls="--",
+                label=f"Particle settling at the overflow rate ({d['overflow']:.1f} m/d)")
+        ax.set_xlim(0, L); ax.set_ylim(0, (H + fb) * 1.05)
+        ax.set_xlabel(f"Distance along the basin ({u})"); ax.set_ylabel(f"Height ({u})")
+        ax.text(L * 0.5, 0.03 * H, "sludge", ha="center", va="center", color="white", fontsize=8)
+        leg = ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.32), frameon=True, edgecolor=ui.INK, fancybox=False)
+        fig.tight_layout(); figs.append(("basin_side_view", fig))
+        fig, ax = plt.subplots(figsize=(6.5, 2.8))
+        ax.add_patch(Rectangle((0, 0), L, W, fc="#dbe6f3", ec=ui.INK, lw=1.4))
+        ax.add_patch(Rectangle((0, 0), 0.08 * L, W, fc="#b3c6e0", ec=ui.BLUE, lw=1, label="Inlet zone"))
+        n_l = max(1, runs // 2) if runs > 1 else 0
+        for i, x in enumerate(np.linspace(0.84 * L, 0.97 * L, n_l) if n_l else []):
+            ax.plot([x, x], [0.04 * W, 0.96 * W], color=ui.ORANGE, lw=3, label=f"Outlet weirs ({runs} runs of W)" if i == 0 else None)
+        if runs == 1 or runs % 2:
+            ax.plot([L, L], [0, W], color=ui.ORANGE, lw=3, label=None if n_l else f"Outlet weir ({runs} run of W)")
+        ax.set_aspect("equal"); ax.set_xlim(-0.01 * L, 1.01 * L); ax.set_ylim(-0.02 * W, 1.02 * W)
+        ax.set_xlabel(f"Length, L = {L:.1f} {u}"); ax.set_ylabel(f"Width, W = {W:.1f} {u}")
+        ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.35), ncol=2, frameon=True, edgecolor=ui.INK, fancybox=False)
+        fig.tight_layout(); figs.append(("basin_plan_view", fig))
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for name, f in figs:
+            for ext, kw in (("png", {"dpi": 300}), ("svg", {})):
+                b = io.BytesIO(); f.savefig(b, format=ext, bbox_inches="tight", **kw); z.writestr(f"{name}.{ext}", b.getvalue())
+            plt.close(f)
+    return buf.getvalue()
 
 
 # ---------------------------------------------------------------------------
@@ -359,6 +405,20 @@ checks each one and says what to change if it fails.</p>
 
     # ---------------- Step 5 ----------------
     ui.step_header(5, "See it work", "step-5")
+    dist = basin_anim.parse_dist(st.query_params.get("vs", ""))
+    md(f"Here is one of your basins, drawn to your dimensions, running. Particles enter across the inlet, the flow "
+       f"carries them toward the outlet weir, and each sinks at its own speed. Those speeds come from "
+       + ("**your own settling-column results**" if dist else "the lecture's sample settling-column results")
+       + f": if the p % isoremoval curve gave an overflow rate v, then p % of the particles settle at v or faster. "
+       f"Blue particles will reach the floor in time; orange ones will be carried out. Caught particles pile up as "
+       f"sludge, thickest near the inlet where the fast ones land. Try the **Flow** slider: more flow means a higher "
+       f"overflow rate and less time, so more particles escape.")
+    components.html(basin_anim.build(d["L"], d["W"], d["H"], d["q_per_basin"], d["overflow"], d["detention"], dist,
+                                     bool(dist)), height=620, scrolling=False)
+    st.caption("Time is sped up so the water crosses in a few seconds; every settling speed keeps its true ratio to the "
+               "overflow rate, so the share caught matches the ideal-basin removal. In a real basin, sludge is scraped "
+               "to a hopper and pumped out regularly; the Remove sludge button does that here.")
+    st.subheader("Test one particle")
     md(f"The side view shows one basin and the paths of particles that settle at different speeds. Water carries "
        f"each particle along while it sinks, so it moves in a straight, sloping line. This basin's overflow rate is "
        f"**{d['overflow']:.1f} m/d**: any particle at least that fast reaches the floor before the outlet, even from "
@@ -431,7 +491,10 @@ down are caught too.</p>""")
                        icon=":material/download:", use_container_width=True)
     c2.download_button("Download summary (.csv)", summary.to_csv(index=False).encode(), "basin_design.csv",
                        icon=":material/download:", use_container_width=True)
-    st.caption("To save a drawing as an image, use the camera icon at its top right.")
+    st.download_button("Download drawings (.zip)", _drawings_zip(d, unit_l, k, fb_disp / k, runs), "basin_drawings.zip",
+                       icon=":material/download:", use_container_width=True)
+    st.caption("The drawings download has a report-ready side view and plan view of one basin, each as a 300 dpi PNG and "
+               "a vector SVG. You can also save any drawing as shown with the camera icon at its top right.")
 
 
 def accessibility_page():
