@@ -14,7 +14,9 @@ For learning; not certified for engineering design.
    (the tool sizes the basin) or your own length and width.
 4. **Check the design:** overflow rate and detention time against your design values, plus depth, L : W,
    horizontal velocity and weir loading; each failing check says what to change.
-5. **Drawings and summary:** plan, profile and 3D views, a summary table, and downloads.
+5. **See it work:** an interactive side view where you pick a particle's settling speed and starting height
+   and see whether the basin catches it, plus plan and 3D views.
+6. **Summary:** a summary table and downloads.
 
 Values can be passed in the link, for example `?vo=43.8&t=1.42&R=70`, so the isoremoval tool can open this
 one already filled in.
@@ -45,9 +47,9 @@ Optional scale-up factors (overflow rate × 0.65–0.85, detention time × 1.25�
 - The Reynolds number uses the hydraulic radius and is shown for information; the old "Re < 2000 laminar"
   check failed every realistic full-size basin. Water viscosity now follows the temperature you enter.
 - Defaults are realistic (the old default overflow rate was 1,200 m/d).
-- Same accessibility system as the isoremoval tool: Atkinson Hyperlegible Next, light and dark themes,
-  48 px targets, focus outlines, reduced motion, text and hatching as well as colour, a description above
-  every drawing.
+- Same teaching and accessibility system as the isoremoval tool: a short "the idea" section, explainer terms,
+  Open Sans, light mode by default (dark in Settings), interactive drawings on white, 48 px targets, focus
+  outlines, scroll reveals that switch off for reduced motion, and a description above every drawing.
 
 ## Running locally
 
@@ -57,4 +59,4 @@ streamlit run app.py
 python tests/test_basin.py
 ```
 
-Fonts: Atkinson Hyperlegible Next and Mono, © Braille Institute, SIL Open Font License (`static/fonts/OFL.txt`).
+Font: Open Sans, SIL Open Font License (`static/fonts/OFL.txt`).
