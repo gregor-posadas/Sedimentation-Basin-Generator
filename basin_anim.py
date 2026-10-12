@@ -73,7 +73,7 @@ function speedFor(F){
 }
 function expectedRemoval(v0){ let s = 0, N = 4000; for (let k = 0; k < N; k++) { const v = speedFor((k + 0.5) / N); s += Math.min(1, v / v0); } return s / N * 100; }
 let state;
-function reset(seed = 9){ state = {r: rng(seed), parts: [], acc: 0, caught: 0, escaped: 0, sludge: new Float32Array(NB), spawned: 0}; simT = 0; }
+function reset(seed = 9){ state = {r: rng(seed), parts: [], acc: 0, caught: 0, escaped: 0, sludge: new Float32Array(NB), spawned: 0, since: 0}; simT = 0; }
 function flow(){ return +document.getElementById("flow").value; }
 function geom(){
   const left = 70, right = Wc - 90, top = 60, avail = Hc - 120;
@@ -92,13 +92,13 @@ function step(dt){
     p.z += dt * (p.v / v0) / Tc;                       // fraction of depth per second
     const floor = 1 - sludgeH(p.x);
     if (p.z >= floor) { const b = Math.min(NB - 1, Math.floor(Math.min(p.x, 0.999) * NB));
-      state.sludge[b] = Math.min(0.45, state.sludge[b] + 0.0016); state.caught++;
-      if (b > 0) state.sludge[b - 1] = Math.min(0.45, state.sludge[b - 1] + 0.0005);
-      if (b < NB - 1) state.sludge[b + 1] = Math.min(0.45, state.sludge[b + 1] + 0.0005); continue; }
+      state.sludge[b] = Math.min(0.45, state.sludge[b] + 0.0042); state.caught++;
+      if (b > 0) state.sludge[b - 1] = Math.min(0.45, state.sludge[b - 1] + 0.0013);
+      if (b < NB - 1) state.sludge[b + 1] = Math.min(0.45, state.sludge[b + 1] + 0.0013); continue; }
     if (p.x >= 1) { state.escaped++; continue; }
     keep.push(p);
   }
-  state.parts = keep; simT += dt;
+  state.parts = keep; simT += dt; state.since += dt;
 }
 function fnt(sz, w=400){ g.font = `${w} ${sz}px "Open Sans", system-ui, sans-serif`; }
 function txt(s,x,y,o={}){ g.save(); fnt(o.size||14,o.w||400); g.fillStyle=o.c||C.ink; g.textAlign=o.a||"left"; g.fillText(s,x,y); g.restore(); }
@@ -139,13 +139,13 @@ function draw(){
       (document.getElementById("crit").checked ? `. Dashed line: a particle settling at exactly the overflow rate, ${v0.toFixed(1)} m/d.` : ""), G.left, G.bottom + 26, {size: 13, c: C.ink2});
   // counters
   const tot = state.caught + state.escaped, pct = tot ? state.caught / tot * 100 : 0, exp = expectedRemoval(v0);
-  const ready = state.escaped > 0 && tot > 60;   // wait until particles have had time to cross
+  const ready = state.since > 1.15 * TCROSS / f;   // wait until the first water has crossed
   const bx = Wc < 600 ? G.left : G.right - 330, by = 8;
   txt(`Caught ${ready ? pct.toFixed(0) : "–"} %  ·  expected ${exp.toFixed(0)} %`, Wc < 600 ? G.left : G.right, by + 16, {size: 15, w: 700, a: Wc < 600 ? "left" : "right"});
   if (fate) { const lx = G.left, ly = by + 16; g.fillStyle = C.blue; g.beginPath(); g.arc(lx + 5, ly - 5, 5, 0, 6.283); g.fill(); txt("will be caught", lx + 14, ly, {size: 13});
     g.fillStyle = C.orange; g.beginPath(); g.arc(lx + 130, ly - 5, 5, 0, 6.283); g.fill(); txt("will escape", lx + 139, ly, {size: 13}); }
   const sl = state.sludge.reduce((a, b) => a + b, 0) / NB;
-  txt(sl > 0.12 ? "Sludge is filling the basin: remove it." : "Sludge builds up where particles land: mostly near the inlet.", G.left, G.bottom + 44, {size: 13, c: sl > 0.12 ? C.orange : C.ink2, w: sl > 0.12 ? 700 : 400});
+  txt(sl > 0.15 ? "Sludge is filling the basin: remove it." : "Sludge builds up where particles land: mostly near the inlet.", G.left, G.bottom + 44, {size: 13, c: sl > 0.12 ? C.orange : C.ink2, w: sl > 0.12 ? 700 : 400});
 }
 function announce(){ const f = flow(), v0 = D.v0 * f, tot = state.caught + state.escaped;
   document.getElementById("live").textContent = `At ${f.toFixed(2)} times the design flow the overflow rate is ${v0.toFixed(1)} m/d and the detention time ${(D.td / f).toFixed(2)} h. ` +
@@ -155,13 +155,13 @@ const playBtn = document.getElementById("play");
 function setPlay(on){ playing = on; playBtn.textContent = on ? "❚❚ Pause" : "▶ Play"; playBtn.setAttribute("aria-pressed", on ? "true" : "false"); if (on) requestAnimationFrame(tick); else announce(); }
 playBtn.onclick = () => setPlay(!playing);
 document.getElementById("scrape").onclick = () => { state.sludge.fill(0); draw(); announce(); };
-document.getElementById("flow").oninput = () => { document.getElementById("flowv").textContent = `${flow().toFixed(2)} × design`; state.caught = 0; state.escaped = 0; draw(); };
+document.getElementById("flow").oninput = () => { document.getElementById("flowv").textContent = `${flow().toFixed(2)} × design`; state.caught = 0; state.escaped = 0; state.since = 0; draw(); };
 document.getElementById("flow").onchange = announce;
 ["fate", "crit"].forEach(id => document.getElementById(id).onchange = draw);
 window.addEventListener("resize", resize);
 /* recording hook: deterministic frame at time tt seconds from a fresh start, at flow factor fl */
 window.__anim = { render: (tt, fl) => { if (fl) { document.getElementById("flow").value = fl; document.getElementById("flowv").textContent = `${(+fl).toFixed(2)} × design`; }
-  playing = false; reset(); const dt = 1 / 30; for (let k = 0; k < Math.round(tt / dt); k++) step(dt); draw(); } };
+  playing = false; reset(); const dt = 1 / 30; for (let k = 0; k < Math.round(tt / dt); k++) step(dt); draw(); announce(); } };
 reset(); resize(); announce();
 if (!reduce) { for (let k = 0; k < 90; k++) step(1 / 30); requestAnimationFrame(tick); } else { for (let k = 0; k < 240; k++) step(1 / 30); draw(); }
 </script></body></html>"""
