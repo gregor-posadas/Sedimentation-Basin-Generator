@@ -1,6 +1,7 @@
-streamlit
-numpy
-pandas
-matplotlib
-plotly
-scipy
+streamlit>=1.50
+numpy>=2.0
+pandas>=2.0
+matplotlib>=3.8
+plotly>=5.20
+openpyxl>=3.1
+cmcrameri>=1.9
