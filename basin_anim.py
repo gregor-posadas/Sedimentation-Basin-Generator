@@ -29,8 +29,6 @@ def build(L, W, H, q, overflow, detention_h, dist=None, from_column=False):
 
 
 HTML = r"""<!doctype html><html><head><meta charset="utf-8"><style>
-@font-face{font-family:"Open Sans";font-weight:400;src:url("/app/static/fonts/open-sans-latin-400-normal.woff2") format("woff2")}
-@font-face{font-family:"Open Sans";font-weight:700;src:url("/app/static/fonts/open-sans-latin-700-normal.woff2") format("woff2")}
 :root{--ink:#1b1a17;--ink2:#4d4a43;--rule:#d4ccbb;--focus:#0072b2}
 *{box-sizing:border-box}
 html,body{margin:0;background:#fff;color:var(--ink);font:16px/1.4 "Open Sans",system-ui,sans-serif}
@@ -55,6 +53,16 @@ label.ck{display:inline-flex;gap:6px;align-items:center;min-height:44px}
 </div>
 <p class="note" id="live" aria-live="polite"></p>
 </div>
+<script>
+/* Load the app's font from wherever the app is served (locally at /, on Streamlit Cloud at /~/+/). */
+(function(){ try {
+  var p = window.parent.location.pathname.replace(/accessibility\/?$/, ""); if (p.slice(-1) !== "/") p += "/";
+  [["400","open-sans-latin-400-normal"],["700","open-sans-latin-700-normal"]].forEach(function(a){
+    var f = new FontFace("Open Sans", "url(" + p + "app/static/fonts/" + a[1] + ".woff2)", {weight: a[0]});
+    f.load().then(function(x){ document.fonts.add(x); if (window.__redraw) window.__redraw(); }).catch(function(){});
+  });
+} catch (e) {} })();
+</script>
 <script>
 const D = __DATA__;
 const cv = document.getElementById("cv"), g = cv.getContext("2d");
@@ -159,6 +167,7 @@ document.getElementById("flow").oninput = () => { document.getElementById("flowv
 document.getElementById("flow").onchange = announce;
 ["fate", "crit"].forEach(id => document.getElementById(id).onchange = draw);
 window.addEventListener("resize", resize);
+window.__redraw = resize;
 /* recording hook: deterministic frame at time tt seconds from a fresh start, at flow factor fl */
 window.__anim = { render: (tt, fl) => { if (fl) { document.getElementById("flow").value = fl; document.getElementById("flowv").textContent = `${(+fl).toFixed(2)} × design`; }
   playing = false; reset(); const dt = 1 / 30; for (let k = 0; k < Math.round(tt / dt); k++) step(dt); draw(); announce(); } };
