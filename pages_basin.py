@@ -120,7 +120,8 @@ def particle_figure(d, u, k, vs_list, fb_m):
             hovertemplate=(f"<b>Particle settling at {vs:g} m/d</b><br>"
                            + ("Reaches the floor " + f"{x_end / L * 100:.0f} % of the way along" if caught
                               else "Still in suspension at the outlet") + "<extra></extra>")))
-    ui.base_layout(fig, height=330, legend_title="Particle paths", n_items=len(vs_list), per_row=1, top=56)
+    ui.base_layout(fig, height=330, legend_title="Particle paths", n_items=len(vs_list), per_row=1, top=56,
+                   title="Particle paths through the basin")
     fig.update_xaxes(**ui.style_axes(fig, automargin=False, title_standoff=14, title_text=f"Distance along the basin ({u})",
                                      range=[-0.01 * L, L * 1.01]))
     fig.update_yaxes(**ui.style_axes(fig, title_text=f"Height above the floor ({u})", range=[0, (H + fb) * 1.04],
@@ -153,7 +154,8 @@ def plan_figure(d, u, k, runs):
                              line=dict(color=ui.ORANGE, width=5)))
     fig.add_trace(go.Scatter(x=[None], y=[None], mode="markers", name="Inlet zone",
                              marker=dict(symbol="square", size=14, color="rgba(56,95,150,0.4)", line=dict(color=ui.BLUE, width=1))))
-    ui.base_layout(fig, height=int(np.clip(680 * W / L, 140, 340)), legend_title=None, n_items=2, per_row=2)
+    ui.base_layout(fig, height=int(np.clip(680 * W / L, 140, 340)), legend_title=None, n_items=2, per_row=2,
+                   title="Plan view of one basin")
     fig.update_xaxes(**ui.style_axes(fig, automargin=False, title_standoff=14, title_text=f"Length, L = {L:.1f} {u}",
                                      range=[-0.01 * L, 1.01 * L]))
     fig.update_yaxes(**ui.style_axes(fig, title_text=f"W = {W:.1f} {u}", range=[-0.02 * W, 1.02 * W],
@@ -177,7 +179,9 @@ def view_3d(d, u, k):
         scene=dict(xaxis_title=f"Length ({u})", yaxis_title=f"Width ({u})", zaxis_title=f"Depth ({u})",
                    aspectmode="data", bgcolor="#ffffff"),
         paper_bgcolor="#ffffff", font=dict(family=ui.FONT, color=ui.INK, size=14),
-        height=480, margin=dict(l=0, r=0, t=10, b=0),
+        height=520, margin=dict(l=0, r=0, t=54, b=0),
+        title=dict(text="<b>3D view of one basin</b>", x=0.5, xanchor="center", y=1, yref="container", yanchor="top",
+                   pad=dict(t=14), font=dict(size=17, color=ui.INK, family=ui.FONT)),
         legend=dict(x=0.01, y=0.99, bgcolor="#ffffff", bordercolor=ui.INK, borderwidth=1),
     )
     return fig
@@ -204,6 +208,7 @@ def _drawings_zip(d, u, k, fb_m, runs):
         ax.set_xlim(-0.015 * L, 1.015 * L); ax.set_ylim(-0.04 * (H + fb), (H + fb) * 1.06)
         ax.set_xlabel(f"Distance along the basin ({u})", labelpad=6); ax.set_ylabel(f"Height above the floor ({u})", labelpad=8)
         fig.legend(loc="outside lower center", ncol=2, frameon=True, edgecolor=ui.INK, fancybox=False, fontsize=9)
+        fig.suptitle("Side view of one basin", fontweight="bold", fontsize=12.5)
         figs.append(("basin_side_view", fig))
         fig, ax = plt.subplots(figsize=(6.5, 2.9), layout="constrained")
         ax.add_patch(Rectangle((0, 0), L, W, fc="#dbe6f3", ec=ui.INK, lw=1.4))
@@ -216,6 +221,7 @@ def _drawings_zip(d, u, k, fb_m, runs):
         ax.set_aspect("equal"); ax.set_xlim(-0.015 * L, 1.015 * L); ax.set_ylim(-0.04 * W, 1.04 * W)
         ax.set_xlabel(f"Length, L = {L:.1f} {u}", labelpad=6); ax.set_ylabel(f"Width, W = {W:.1f} {u}", labelpad=8)
         fig.legend(loc="outside lower center", ncol=2, frameon=True, edgecolor=ui.INK, fancybox=False, fontsize=9)
+        fig.suptitle("Plan view of one basin", fontweight="bold", fontsize=12.5)
         figs.append(("basin_plan_view", fig))
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
